@@ -1,0 +1,15 @@
+sim
+projectile_sim
+
+# Object files, libraries, executables
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+a.out
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
