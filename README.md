@@ -1,6 +1,6 @@
 # Projectile Simulator
 
-![Start screen](images/start_screen.png)
+![Start screen](images/shot.png)
 
 ## How to install
 
