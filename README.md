@@ -60,13 +60,17 @@ That's it — Ready to Play! 🎉
 
 Use your computer arrow keys (UP, DOWN, LEFT, RIGHT) to change the aim direction of the cannon.
 
-Hold the space bar to begin firing the cannon. The longer you hold the space bar, the more powerful the shot will be. Release the space bar to fire. 
+Hold the space bar to begin firing the cannon. The longer you hold the space bar, the more powerful the shot will be. Release the space bar to fire.
 
 Aim for the bullseye targets on the screen. Each target is a set of concentric rings, and the more centered your hit, the more points you score: the outer ring is worth 1 point, climbing up to 5 points for a dead-center bullseye. After being struck, a target briefly disappears before reappearing at a new spot, and every 3rd hit, it also shrinks and changes color, making it progressively harder to hit.
 
-You start with a limited number of misses (shown as "Misses Left" at the bottom of the screen). A shot counts as a miss if it sails past the target or is too weak to ever reach it. When you run out of misses, the game ends and a Game Over screen displays your final score.
+**Combo multiplier:** consecutive hits (without a miss in between) multiply your score. A "+N" popup appears at the hit location showing the exact points awarded.
 
-Make sure to consider wind when aiming your shot. 
+**Difficulty tiers:** as your hit count climbs, targets begin patrolling side-to-side (tier 1), then move faster (tier 2), then switch to a circular Y-Z arc (tier 3). The current tier badge is shown in the top-right corner of the screen.
+
+You start with 10 misses (shown as colored squares at the bottom-left). A shot counts as a miss if it sails past the target or is too weak to ever reach it. When you run out of misses, the game ends and a Game Over screen displays your final score. Press **R** to restart.
+
+Make sure to consider wind when aiming your shot. The wind compass (top-right) shows direction and speed; wind changes every 3rd hit, and the compass flashes "WIND!" as a warning one hit before the change.
 
 ## Live reload during development
 
@@ -93,29 +97,36 @@ Notes:
 ```
 include/   header files (.h)
 src/       implementation files (.cpp)
+images/    start screen texture
+music/     background music (8bit_music.mp3)
 Makefile
 README.md
 ```
 
-Headers live in ```include/``` and are compiled with the ```-Iinclude``` flag, so source files include them by bare filename (e.g. ```#include "Cannon.h"```) without needing a relative path.
+Headers live in `include/` and are compiled with the `-Iinclude` flag, so source files include them by bare filename (e.g. `#include "Cannon.h"`) without needing a relative path.
 
 ## Inheritance structure of classes
 
-The root class is ```Entity``` which has a position.
-It also has a ```virtual``` destructor method.
-It has a ```virtual``` update method which takes in a framerate. 
-It has a ```virtual``` draw method which renders the entity to the screen. 
+The root class is `Entity`, which has a position, a `virtual` destructor, a `virtual` `Update(float dt)` method, and a `virtual` `Draw()` method.
 
-Class ```PhysicsBody``` inherits from entity and implements the update class with all of the relevant physics math. Entites that move with gravity / wind resistance need to inherit from ```PhysicsBody```. This includes bounce mechanics and randomly generated wind. ```PhysicsBody``` defines the gravitational force, wind, and bounce mechanics of a given set of rounds. Wind changes every three round. 
+`PhysicsBody` inherits from `Entity` and implements `Update()` with gravity, wind resistance, and bounce mechanics. Entities that move under physics inherit from `PhysicsBody`. Wind is randomly generated and changes every three hits.
 
-The ```Projectile``` class implements the draw method of entity. It represents the ball being launched, and uses raylib's ```DrawSphere()``` API method. It takes a position, radius and color. 
+`Projectile` inherits from `PhysicsBody` and implements `Draw()` as a sphere via raylib's `DrawSphere()`. It also owns the wind state shared across the session (`GenerateWind()`).
 
-The ```Debris``` class also inherits from ```PhysicsBody```, so it reuses the same gravity and bounce physics for free (it only implements ```Draw()```). Debris are the colored fragments that erupt from a target when it is struck.
+`Debris` also inherits from `PhysicsBody`, reusing all the same gravity and bounce logic for free. Debris are the colored fragments that erupt from a target when it is struck (100 pieces per hit, capped at 300 total alive at once).
 
-The ```Target``` class inherits directly from ```Entity``` (it is static, so it does not need ```PhysicsBody```). It is drawn as a bullseye of concentric vertical rings facing the cannon using raylib's ```DrawCylinderEx()``` method. Its ```CheckHit()``` method tests whether the ball crossed the disk's plane within the disk's face on a given frame, firing exactly once per pass-through instead of repeatedly while the ball overlaps a solid volume. It returns which ring was struck (0 for a miss, 1 for the outer ring, up to 5 for a dead-center bullseye) so the caller can score the hit. Its ```Missed()``` method reports when a shot can no longer score, either because it sailed past the target's plane or is too weak to ever reach it.
+`Target` inherits directly from `Entity` (it does not need physics). It is drawn as a bullseye of concentric vertical rings facing the cannon via `DrawCylinderEx()`. Key methods:
+- `CheckHit()` — tests whether the ball crossed the disk's plane within the disk face on a given frame (fires exactly once per pass-through). Returns 0 for miss, 1–5 for ring struck.
+- `Missed()` — returns true once the ball can no longer score: either it flew past the target's plane, or it fell short and is no longer moving toward it.
+- `ApplyDifficulty(tier)` — sets patrol speed and arc mode from the current difficulty tier. At tier 0 targets are stationary; at tier 1+ they patrol side-to-side; at tier 3 they move in a circular Y-Z arc.
 
-Then there is the ```Cannon``` class which does NOT inherit from the ```Entity``` class as it is not subject to gravity or wind for it's movement. Only user input can move the cannon, changing its aim direction. The ```Cannon.Fire()``` method takes a ```Projectile``` object by reference, and then affects it's physics metrics. 
+`Cannon` does **not** inherit from `Entity` — it is not subject to gravity or wind. Only user input moves it (azimuth, elevation, launch speed). `Fire()` takes a `Projectile` by reference and sets its velocity. `Update()` drives a spring-damper recoil animation and muzzle flash. `Reset()` restores launch speed and clears recoil.
 
-main.cpp contains ```DrawWorld()``` which renders the the game environment appearance. It also contains ```DrawWindHUD()``` which will render the wind compass in the top right corner of the screen for the user to consider when shooting a ball. 
+`main.cpp` contains the game loop and several free functions:
+- `DrawWorld()` — renders the 3-D environment (ground, grid, range markers, trees with rustling leaves, boulders, mountains, clouds, sun/moon/stars). Environment appearance adapts to a randomly chosen time-of-day: **DAY**, **SUNSET**, or **NIGHT** (new value each session/restart).
+- `DrawWindHUD()` — renders the wind compass (direction arrow + speed in m/s) in the top-right corner. Flashes "WIND!" one hit before the wind changes.
+- `DrawPowerBar()` — renders the charge bar at the bottom-center while the player holds SPACE.
+- `GenBoom()` / `GenHit()` — procedurally synthesize the cannon-fire and target-hit sound effects at startup (no audio files needed for SFX). Looping 8-bit background music is loaded from `music/8bit_music.mp3`. A **Mute/Unmute** button sits in the bottom-right corner.
 
+Visual effects in the game loop: a **ball trail** (12-frame ghost spheres), **muzzle smoke particles** on fire, **camera shake** on fire and on hit, a **hit flash** on the target face, and a **"+N" score popup** that appears at the target position after each hit.
 
